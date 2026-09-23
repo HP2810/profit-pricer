@@ -115,7 +115,7 @@
   .field label{font-size:12.5px;color:var(--ink-soft);}
   .field .input-row{display:flex;align-items:center;gap:6px;}
   .field .unit{color:var(--ink-soft);font-size:13px;font-family:'IBM Plex Mono',monospace;}
-  input[type=number], select, input[type=text]{
+  input[type=number], select, input[type=text], input[type=search]{
     font-family:'IBM Plex Mono',monospace;
     font-size:14px;
     background:var(--input-bg);
@@ -179,6 +179,13 @@
   }
   .summary .stat .lbl{color:var(--ink-soft);font-size:12.5px;margin-top:4px;}
   .summary .stat{min-width:120px;}
+
+  .results-toolbar{display:none;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+  .results-toolbar .field{flex:1 1 260px;max-width:480px;}
+  .search-clear{background:var(--input-bg);color:var(--ink);border:1px solid var(--line);border-radius:2px;padding:8px 12px;cursor:pointer;font:inherit;}
+  .search-clear:disabled{opacity:.5;cursor:default;}
+  .results-count{color:var(--ink-soft);font-size:13px;align-self:center;}
+  td.empty-results{white-space:normal;text-align:center;padding:24px;color:var(--ink-soft);}
 
   .table-scroll{
     display:none;
@@ -405,6 +412,15 @@
     <div class="stat"><div class="num" id="sumCount">0</div><div class="lbl">products priced</div></div>
     <div class="stat"><div class="num" id="sumProfit">$0</div><div class="lbl">total projected profit</div></div>
     <div class="stat"><div class="num" id="sumMargin">0%</div><div class="lbl">avg. margin on cost</div></div>
+  </div>
+
+  <div class="results-toolbar" id="resultsToolbar">
+    <div class="field">
+      <label for="resultsSearch">Search results by product name</label>
+      <input type="search" id="resultsSearch" placeholder="Type a product name…" autocomplete="off" aria-controls="tbody" aria-describedby="resultsCount">
+    </div>
+    <button class="search-clear" id="clearResultsSearch" type="button" disabled>Clear search</button>
+    <span class="results-count" id="resultsCount" role="status" aria-live="polite"></span>
   </div>
 
   <div class="table-scroll" id="tableScroll">
@@ -828,8 +844,28 @@
   }
 
   function renderTable(){
-    document.getElementById('tbody').innerHTML = state.rows.map((r,i)=>rowHTML(r,i)).join('');
+    const search = document.getElementById('resultsSearch');
+    if(!state.rows.length) search.value = '';
+    const query = search.value.trim().toLowerCase();
+    // Keep original indices so edits and removals target the correct product.
+    const matches = state.rows.map((row, idx)=>({row, idx})).filter(({row})=>
+      [row.name, row.rawName || ''].some(name=>name.toLowerCase().includes(query))
+    );
+    document.getElementById('tbody').innerHTML = matches.length
+      ? matches.map(({row, idx})=>rowHTML(row, idx)).join('')
+      : '<tr><td colspan="11" class="empty-results">No products match your search. Try another name or clear the search.</td></tr>';
+    document.getElementById('resultsToolbar').style.display = state.rows.length ? 'flex' : 'none';
+    document.getElementById('resultsCount').textContent = `Showing ${matches.length} of ${state.rows.length} products`;
+    document.getElementById('clearResultsSearch').disabled = !search.value;
   }
+
+  document.getElementById('resultsSearch').addEventListener('input', renderTable);
+  document.getElementById('clearResultsSearch').addEventListener('click', ()=>{
+    const search = document.getElementById('resultsSearch');
+    search.value = '';
+    renderTable();
+    search.focus();
+  });
 
   function updateRowCells(idx){
     const row = state.rows[idx];
